@@ -52,14 +52,26 @@ namespace Dapper
             /// <returns></returns>
             public virtual int? Insert(dynamic data)
             {
+                return Insert<int?>(data);
+            }
+            /// <summary>
+            /// Insert a row into the db
+            /// </summary>
+            /// <typeparam name="TId">Type of the ID column</typeparam>
+            /// <param name="data">Either DynamicParameters or an anonymous type or concrete type</param>
+            /// <returns></returns>
+            /// <remarks>Currently, TId should be a nullable type like int?, ulong?, ...</remarks>
+            public virtual TId Insert<TId>(dynamic data)
+            {
                 var o = (object)data;
                 List<string> paramNames = GetParamNames(o);
 
                 string cols = string.Join(",", paramNames);
                 string cols_params = string.Join(",", paramNames.Select(p => "@" + p));
+                // TODO: find a type to use on cast(scope_identity() as TYPE)
                 var sql = "set nocount on insert " + TableName + " (" + cols + ") values (" + cols_params + ") select cast(scope_identity() as int)";
 
-                return database.Query<int?>(sql, o).Single();
+                return database.Query<TId>(sql, o).Single();
             }
 
             /// <summary>
@@ -70,10 +82,22 @@ namespace Dapper
             /// <returns></returns>
             public int Update(int id, dynamic data)
             {
+                return Update<int>(id, data);
+            }
+
+            /// <summary>
+            /// Update a record in the DB
+            /// </summary>
+            /// <typeparam name="TId">Type of the ID column</typeparam>
+            /// <param name="id"></param>
+            /// <param name="data"></param>
+            /// <returns></returns>
+            public int Update<TId>(TId id, dynamic data)
+            {
                 List<string> paramNames = GetParamNames((object)data);
 
                 var builder = new StringBuilder();
-                builder.Append("update [").Append(TableName).Append("] set ");
+                builder.Append("update ").Append(TableName).Append(" set ");
                 builder.AppendLine(string.Join(",", paramNames.Where(n => n != "Id").Select(p => p + "= @" + p)));
                 builder.Append("where Id = @Id");
 
@@ -84,11 +108,22 @@ namespace Dapper
             }
 
             /// <summary>
-            /// Delete a record for the DB
+            /// Delete a record from the DB
             /// </summary>
             /// <param name="id"></param>
             /// <returns></returns>
             public bool Delete(int id)
+            {
+                return Delete<int>(id);
+            }
+
+            /// <summary>
+            /// Delete a record from the DB
+            /// </summary>
+            /// <typeparam name="TId">Type of the ID field</typeparam>
+            /// <param name="id"></param>
+            /// <returns></returns>
+            public bool Delete<TId>(TId id)
             {
                 return database.Execute("delete " + TableName + " where Id = @id", new { id }) > 0;
             }
@@ -100,10 +135,20 @@ namespace Dapper
             /// <returns></returns>
             public T Get(int id)
             {
+                return Get<int>(id);
+            }
+            /// <summary>
+            /// Grab a record with a particular Id from the DB
+            /// </summary>
+            /// <typeparam name="TId">Type of the ID field</typeparam>
+            /// <param name="id"></param>
+            /// <returns></returns>
+            public T Get<TId>(TId id)
+            {
                 return database.Query<T>("select * from " + TableName + " where Id = @id", new { id }).FirstOrDefault();
             }
 
-            public T First()
+            public virtual T First()
             {
                 return database.Query<T>("select top 1 * from " + TableName).FirstOrDefault();
             }
