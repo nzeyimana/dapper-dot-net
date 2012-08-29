@@ -70,6 +70,7 @@ namespace Dapper
                 string cols_params = string.Join(",", paramNames.Select(p => "@" + p));
                 // TODO: find a type to use on cast(scope_identity() as TYPE)
                 var sql = "set nocount on insert " + TableName + " (" + cols + ") values (" + cols_params + ") select cast(scope_identity() as int)";
+                sql = String.Format(database.SqlCrudTemplate.InsertTemplate + ";" + database.SqlCrudTemplate.SelectLastInsertedId, TableName, cols, cols_params);
 
                 return database.Query<TId>(sql, o).Single();
             }
@@ -145,17 +146,18 @@ namespace Dapper
             /// <returns></returns>
             public T Get<TId>(TId id)
             {
-                return database.Query<T>("select * from " + TableName + " where Id = @id", new { id }).FirstOrDefault();
+                var sql = String.Format(database.SqlCrudTemplate.SelectAllTemplate, TableName, "Id = @id");
+                return database.Query<T>(sql, new { id }).FirstOrDefault();
             }
 
             public virtual T First()
             {
-                return database.Query<T>("select top 1 * from " + TableName).FirstOrDefault();
+                return database.Query<T>(String.Format(database.SqlCrudTemplate.SelectFirstTemplate, TableName)).FirstOrDefault();
             }
 
             public IEnumerable<T> All()
             {
-                return database.Query<T>("select * from " + TableName);
+                return database.Query<T>(String.Format(database.SqlCrudTemplate.SelectAllTemplate, TableName));
             }
 
             static ConcurrentDictionary<Type, List<string>> paramNameCache = new ConcurrentDictionary<Type, List<string>>();
@@ -184,11 +186,15 @@ namespace Dapper
         DbConnection connection;
         int commandTimeout;
         DbTransaction transaction;
-
+        public ICrudTemplate SqlCrudTemplate;
 
         public static TDatabase Init(DbConnection connection, int commandTimeout)
         {
             TDatabase db = new TDatabase();
+            if (db.SqlCrudTemplate == null)
+            {
+                db.SqlCrudTemplate = new SqlServerCrudTemplate();
+            }
             db.InitDatabase(connection, commandTimeout);
             return db;
         }
@@ -351,6 +357,57 @@ namespace Dapper
                 connection.Close();
                 connection = null;
             }
+        }
+    }
+
+
+    public interface ICrudTemplate
+    {
+        string InsertTemplate { get; set; }
+        string UpdateTemplate { get; set; }
+        string DeleteTemplate { get; set; }
+        string SelectAllTemplate { get; set; }
+        string SelectFirstTemplate { get; set; }
+        string SelectLastInsertedId { get; set; }
+    }
+
+    public class SqlServerCrudTemplate : ICrudTemplate
+    {
+        public string InsertTemplate { get; set; }
+        public string UpdateTemplate { get; set; }
+        public string DeleteTemplate { get; set; }
+        public string SelectAllTemplate { get; set; }
+        public string SelectFirstTemplate { get; set; }
+        public string SelectLastInsertedId { get; set; }
+
+        public SqlServerCrudTemplate()
+        {
+            InsertTemplate = "SET NOCOUNT ON INSERT {0} ({1}) VALUES ({2})";
+            UpdateTemplate = "UPDATE {0} SET {1} WHERE {2}";
+            DeleteTemplate = "DELETE FROM {0} WHERE {1}";
+            SelectAllTemplate = "SELECT * FROM {0} WHERE {1}";
+            SelectFirstTemplate = "SELECT TOP 1 * FROM {0}";
+            SelectLastInsertedId = "SELECT CAST(SCOPE_IDENTITY() AS INT)";
+        }
+    }
+
+    public class MySqlCrudTemplate : ICrudTemplate
+    {
+        public string InsertTemplate { get; set; }
+        public string UpdateTemplate { get; set; }
+        public string DeleteTemplate { get; set; }
+        public string SelectAllTemplate { get; set; }
+        public string SelectFirstTemplate { get; set; }
+        public string SelectLastInsertedId { get; set; }
+
+        public MySqlCrudTemplate()
+        {
+            InsertTemplate = "INSERT INTO {0} {1} VALUES {2}";
+            UpdateTemplate = "UPDATE {0} SET {1} WHERE {2}";
+            DeleteTemplate = "DELETE FROM {0} WHERE {1}";
+            SelectAllTemplate = "SELECT * FROM {0} WHERE {1}";
+            SelectFirstTemplate = "SELECT * FROM {0} LIMIT 1";
+            SelectLastInsertedId = "SELECT LAST_INSERT_ID()";
         }
     }
 }
