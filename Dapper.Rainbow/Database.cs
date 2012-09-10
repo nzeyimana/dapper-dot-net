@@ -68,10 +68,11 @@ namespace Dapper
 
                 string cols = string.Join(",", paramNames);
                 string cols_params = string.Join(",", paramNames.Select(p => "@" + p));
-                // TODO: find a type to use on cast(scope_identity() as TYPE)
-                var sql = "set nocount on insert " + TableName + " (" + cols + ") values (" + cols_params + ") select cast(scope_identity() as int)";
-                sql = String.Format(database.SqlCrudTemplate.InsertTemplate + ";" + database.SqlCrudTemplate.SelectLastInsertedId, TableName, cols, cols_params);
+                var sql = String.Format(database.SqlCrudTemplate.InsertTemplate + ";" /*+ database.SqlCrudTemplate.SelectLastInsertedId*/, TableName, cols, cols_params);
 
+                var ret = database.Execute(sql, o);
+                var kdkk = database.Query<TId>(database.SqlCrudTemplate.SelectLastInsertedId).Single();
+                sql = database.SqlCrudTemplate.SelectLastInsertedId;
                 return database.Query<TId>(sql, o).Single();
             }
 
@@ -402,7 +403,7 @@ namespace Dapper
 
         public MySqlCrudTemplate()
         {
-            InsertTemplate = "INSERT INTO {0} {1} VALUES {2}";
+            InsertTemplate = "INSERT INTO {0} ({1}) VALUES ({2})";
             UpdateTemplate = "UPDATE {0} SET {1} WHERE {2}";
             DeleteTemplate = "DELETE FROM {0} WHERE {1}";
             SelectAllTemplate = "SELECT * FROM {0} WHERE {1}";
